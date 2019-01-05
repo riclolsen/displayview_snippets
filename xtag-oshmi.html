@@ -1,0 +1,674 @@
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <script src="x-tag-raw.min.js"></script>
+    <script type="module">
+        xtag.create("oshmi-display", class extends XTagElement {
+
+
+            connectedCallback() {
+                this.start();
+            }
+            start() {
+                this.NPTS = [];
+                this.g_nponto_sup = 0;
+                this.InkSage = [];
+                this.g_idprefixes = [];
+                this.g_obj_onclick = "{ var pt=parseInt('PONTO'); if (isNaN(pt)) pt=this.getPointKey('PONTO'); if( evt.ctrlKey || evt.which == 2 ) { this.reconhece(pt); } else { this.janelaInfo(pt); } }";
+                this.g_timeshift = 0;
+                this.lstpnt = new Set();
+                this.Pass = 0;
+                this.update();
+            }
+
+            stop() {
+            }
+
+            update() {
+                try {
+                    fetch(this.getAttribute("src")).
+                        then(function (response) {
+                            if (!response.ok)
+                                throw Error(response.statusText);
+                            else
+                                return response;
+                        }).
+                        then(response =>
+                            response.text()).
+                        then(data => {
+                            this.innerHTML = data;
+                            this.processDisplay();
+                            var that = this;
+                            setTimeout(function () { that.updateValues(); }, 100);
+                        }).catch(function (error) {
+                            console.log(error);
+                        });
+                }
+                catch (E) {
+                    console.log(E.message);
+                }
+            }
+
+            updateValues() {
+
+                try {
+                    fetch(
+                        this.getAttribute("server") +
+                        '?P=' + // leave P parameter empty, list of points will be in the E (HTTP POST) parameter
+                        '&B=this.showValsSVG' +
+                        '&I=' + (this.Pass === 0 ? 1 : 0) +
+                        '&PS=' + this.Pass, {
+                            method: "POST",
+                            body: 'E=' + Array.from(this.lstpnt).join(",") // force post, list of points in the E (HTTP POST) parameter
+                        }
+                    ).
+                        then(function (response) {
+                            if (!response.ok)
+                                throw Error(response.statusText);
+                            else
+                                return response;
+                        }).
+                        then(response =>
+                            response.text()).
+                        then(data => {
+                            var Data="";
+                            var result = function (str) {
+                                return eval(str);
+                            }.call(this, data);
+                            this.Pass++;
+                        }).catch(function (error) {
+                            console.log(error);
+                        });
+                }
+                catch (E) {
+                    console.log(E.message);
+                }
+
+            }
+
+            getPointKey(tagornumber) {
+                return this.NPTS[tagornumber] || 0;
+            }
+
+            getCloneTag() {
+
+            }
+
+            insertTagOnList(tag) {
+                tag = tag.trim();
+
+                /*
+                if ( tag.indexOf('ALM') === 0 || 
+                     tag.indexOf('TMP') === 0 )
+                  { 
+                    tag = tag.substr( 3 );
+                  }
+                else  
+                */
+                if (tag.indexOf('!ALM') === 0 ||
+                    tag.indexOf('!TMP') === 0 ||
+                    tag.indexOf('!ALR') === 0 ||
+                    tag.indexOf('!ALR') === 0 ||
+                    tag.indexOf('!TAG') === 0 ||
+                    tag.indexOf('!DCR') === 0) {
+                    tag = tag.substr(4);
+                }
+                else
+                    if (tag.indexOf('!SLIM') === 0 ||
+                        tag.indexOf('!ILIM') === 0 ||
+                        tag.indexOf('!STON') === 0) {
+                        tag = tag.substr(5);
+                    }
+                    else
+                        if (tag.indexOf('!STOFF') === 0 ||
+                            tag.indexOf('!STVAL') === 0) {
+                            tag = tag.substr(6);
+                        }
+
+                if (isNaN(parseInt(tag))) {
+                    if (typeof (this.NPTS[tag]) !== "undefined") {
+                        tag = this.NPTS[tag];
+                    }
+                    else {
+                        var code = tag.charCodeAt(0);
+                        if (((code >= 65) && (code <= 90)) || ((code >= 97) && (code <= 122))) {
+                            // it is a letter: ok it can be a id
+                        }
+                        else
+                            return 0; // it can't be an id
+                    }
+                }
+
+                this.lstpnt.add(tag)
+
+                return tag;
+            }
+            tooltipRelac(item, pnt) {
+
+            }
+            setGroupDistrib(item) { }
+            SetIniExtended(inksage_labelvec, lbv, item) { };
+            setPreview() { }
+            produzEtiq(item, pnt) { }
+            produzDestaq(item, pnt) { }
+            produzRelac(item, pnt) { }
+            TraduzCor(cor) { }
+
+            readMarkup(item) {
+                var lbv, pnt, inksage_labelvec, j, i, t;
+                var tspl, src, xsacsrc, arrcores, idtela;
+                var calltps, tooltip, tooltiptext, textNode, clone, nohs, bb, xright, sep;
+                var tfm;
+                var arr = [];
+                var auxobj;
+                var pospfx, aft;
+
+                var SVGDoc = this.children[0];
+
+                // Integraxor, XSAC, http://www.integraxor.com/
+                var inksage_labeltxt = item.getAttributeNS(null, "inkscape:label") || item.getAttributeNS("http://www.inkscape.org/namespaces/inkscape", "label");
+
+                if (inksage_labeltxt === null || typeof (inksage_labeltxt) === "undefined") {
+                    return;
+                }
+                if (inksage_labeltxt == "") {
+                    return;
+                }
+                if (inksage_labeltxt.indexOf("{") != 0) {
+                    return;
+                }
+
+                try {
+                    while ((pospfx = inksage_labeltxt.indexOf("$$#")) >= 0) // process id prefixes
+                    {
+                        aft = inksage_labeltxt.substr(pospfx);
+                        inksage_labeltxt = inksage_labeltxt.substr(0, pospfx) +
+                            this.g_idprefixes[parseInt(inksage_labeltxt.substr(pospfx + 3)) - 1] +
+                            aft.substr(aft.indexOf("_") + 1);
+                    }
+
+                    inksage_labelvec = JSON.parse('[' + inksage_labeltxt + ']'); // parse JSON to a vector variable
+                }
+                catch (Exception) {
+                    return;
+                }
+
+                for (lbv = 0; lbv < inksage_labelvec.length; lbv++) {
+                    inksage_labelvec[lbv].parent = item;
+                    this.getCloneTag(item, inksage_labelvec[lbv]); // resolve clones tags
+                    if (typeof (inksage_labelvec[lbv].tag) != 'undefined') // has point tag?
+                    {
+                        pnt = this.insertTagOnList(inksage_labelvec[lbv].tag);
+                        if (pnt != 99999) // dummy point   
+                            if (typeof (item.blockPopup) == "undefined") // test popup already defined
+                                if (item.pontoPopup == undefined) {
+                                    this.tooltipRelac(item, pnt);
+                                    item.setAttributeNS(null, "onclick", this.g_obj_onclick.replace(/PONTO/g, pnt));
+                                    if (item.style !== null) {
+                                        item.style.cursor = "pointer";
+                                    }
+
+                                    if (item.noTrace == undefined && item.parentNode.noTrace == undefined) {
+                                        this.produzEtiq(item, pnt);
+                                        this.produzDestaq(item, pnt);
+                                        this.produzRelac(item, pnt);
+                                    }
+                                }
+                        switch (inksage_labelvec[lbv].attr) {
+                            case "set":
+                                switch (inksage_labelvec[lbv].tag) {
+                                    case "#radar": // radar chart, defined under a rectangle
+                                        break;
+                                    case "#exec_once": // exec a script one time
+                                    case "#exec": // exec a script one time
+                                        try {
+                                            eval('var thisobj=SVGDoc.getElementById("' + item.id + '"); ' + inksage_labelvec[lbv].src);
+                                        }
+                                        catch (err) {
+                                            console.log(err.name + ": " + err.message + " [8]");
+                                            console.log(err.stack);
+                                        }
+                                        break;
+                                    case "#set_filter": // set filter to almbox
+                                        break;
+                                    case "#copy_xsac_from": // copy xsac tags from other object
+                                        if (inksage_labelvec[lbv].src != "") {
+                                            src = inksage_labelvec[lbv].src.split(",");
+                                            for (j = 0; j < src.length; j++) {
+                                                auxobj = SVGDoc.getElementById(src[j]);
+                                                if (auxobj !== null) {
+                                                    xsacsrc = auxobj.getAttributeNS(null, "inkscape:label") || auxobj.getAttributeNS("http://www.inkscape.org/namespaces/inkscape", "label");
+                                                    if (xsacsrc != "") {
+                                                        item.setAttribute("inkscape:label", xsacsrc);
+                                                        // item.setAttributeNS( "http://www.inkscape.org/namespaces/inkscape", "label", xsacsrc );
+                                                        this.readMarkup(item);
+                                                    }
+                                                }
+                                                else {
+                                                    console.log("Err: 'copy_xsac_from' " + src[j] + " --> " + item.id);
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case "#set_group_distribution": // Distributes one object after another (to the right or bottom) inside a group  
+                                        {
+                                            sep = parseFloat(inksage_labelvec[lbv].src);
+                                            if (isNaN(sep)) {
+                                                item.groupDistribSpacing = 0;
+                                            }
+                                            else {
+                                                item.groupDistribSpacing = sep;
+                                            }
+
+                                            if (inksage_labelvec[lbv].prompt === "vertical") {
+                                                item.groupDistribType = "vertical";
+                                            }
+                                            else {
+                                                item.groupDistribType = "horizontal";
+                                            }
+
+                                            this.setGroupDistrib(item);
+                                        }
+                                        break;
+                                    default:
+                                        this.SetIniExtended(inksage_labelvec, lbv, item);
+                                        break;
+                                }
+                                break;
+                            case "popup":
+                                if (inksage_labelvec[lbv].src.indexOf("preview:") === 0) {
+                                    this.setPreview(item, inksage_labelvec[lbv].src.substr(8), inksage_labelvec[lbv].width, inksage_labelvec[lbv].height);
+                                }
+                                else
+                                    if (inksage_labelvec[lbv].src === "block") { // do not open point access on click
+                                        item.setAttributeNS(null, "onclick", null);
+                                        if (item.style != null) {
+                                            item.style.cursor = "";
+                                        }
+                                        item.blockPopup = 1;
+                                        item.noTrace = 1;
+                                    }
+                                    else
+                                        if (inksage_labelvec[lbv].src === "notrace") { // allows to open point access tracing other object on click
+                                            item.noTrace = 1;
+                                        }
+                                        else { // links point to access on click  
+                                            pnt = this.insertTagOnList(inksage_labelvec[lbv].src);
+                                            this.tooltipRelac(item, pnt);
+                                            item.setAttributeNS(null, "onclick", this.g_obj_onclick.replace(/PONTO/g, pnt));
+                                            if (item.style !== null || typeof (item.style) === 'undefined') {
+                                                item.style.cursor = "pointer";
+                                            }
+                                            item.pontoPopup = pnt;
+                                        }
+                                break;
+                            case "get":
+                                if (inksage_labelvec[lbv].parent.childNodes[0].textContent.indexOf("%") >= 0) // guarda formato C, se houver
+                                {
+                                    inksage_labelvec[lbv].formatoC = inksage_labelvec[lbv].parent.childNodes[0].textContent;
+
+                                    pnt = inksage_labelvec[lbv].tag;
+                                    if (isNaN(parseInt(pnt))) {
+                                        var that = this;
+                                        setTimeout(function () {
+                                            var p = that.getPointKey(pnt);
+                                            // show the plot preview on mouseover, after a time to get point definitions
+                                            that.setPreview(item, "trend.html?NPONTO=" + p + "&HIDECTRLS=1", 610, 340);
+                                        }, 6000);
+                                    }
+                                    else
+                                        // show the plot preview on mouseover
+                                        this.setPreview(item, "trend.html?NPONTO=" + pnt + "&HIDECTRLS=1", 610, 340);
+
+                                    var animation = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+                                    animation.setAttributeNS(null, 'attributeName', 'text-decoration');
+                                    animation.setAttributeNS(null, 'attributeType', 'XML');
+                                    animation.setAttributeNS(null, 'values', ''); // 'line-through;overline;overline;line-through;overline;overline'
+                                    animation.setAttributeNS(null, 'dur', '1.7s');
+                                    // animation.setAttributeNS( null, 'begin', 'DOMSubtreeModified' );
+                                    item.appendChild(animation);
+                                    item.changeAnim = animation;
+                                }
+                                else {
+                                    if (inksage_labelvec[lbv].parent.childNodes[0].textContent.indexOf("|") >= 0) // guarda mensagens OFF|ON|FAILED
+                                    {
+                                        inksage_labelvec[lbv].txtOFFON = inksage_labelvec[lbv].parent.childNodes[0].textContent.split("|");
+                                    }
+                                }
+                                break;
+                            case "color":
+                                if (item.style !== null) {
+                                    inksage_labelvec[lbv].initfill = item.style.fill;
+                                    inksage_labelvec[lbv].initstroke = item.style.stroke;
+                                }
+                                else {
+                                    inksage_labelvec[lbv].initfill = "";
+                                    inksage_labelvec[lbv].initstroke = "";
+                                }
+                                for (j = 0; j < inksage_labelvec[lbv].list.length; j++) {
+                                    pnt = this.insertTagOnList(inksage_labelvec[lbv].list[j].tag);
+                                    inksage_labelvec[lbv].list[j].cscript = "";
+                                    inksage_labelvec[lbv].list[j].cfill = "";
+                                    inksage_labelvec[lbv].list[j].cstroke = "";
+                                    inksage_labelvec[lbv].list[j].cattrib = "";
+                                    inksage_labelvec[lbv].list[j].cattribval = "";
+
+                                    if (inksage_labelvec[lbv].list[j].param.indexOf("attrib: ") === 0) {
+                                        arr = inksage_labelvec[lbv].list[j].param.substr(8).split("=");
+                                        if (arr.length > 1) {
+                                            inksage_labelvec[lbv].list[j].cattrib = arr[0];
+                                            inksage_labelvec[lbv].list[j].cattribval = arr[1];
+                                        }
+                                    }
+                                    else
+                                        if (inksage_labelvec[lbv].list[j].param.indexOf("script: ") === 0) {
+                                            inksage_labelvec[lbv].list[j].cscript = inksage_labelvec[lbv].list[j].param.substr(8);
+                                        }
+                                        else {
+                                            // executa tradução dos atalhos de cores definidos no config_visores.js
+                                            arrcores = [];
+                                            arrcores = inksage_labelvec[lbv].list[j].param.split("|");
+                                            inksage_labelvec[lbv].list[j].cfill = this.TraduzCor(arrcores[0]);
+                                            if (arrcores.length > 1) {
+                                                inksage_labelvec[lbv].list[j].cstroke = this.TraduzCor(arrcores[1]);
+                                            }
+                                            else {
+                                                inksage_labelvec[lbv].list[j].cstroke = inksage_labelvec[lbv].list[j].cfill;
+                                            }
+                                        }
+
+                                    if (pnt != 99999) // dummy point     
+                                        if (typeof (item.blockPopup) == "undefined")
+                                            if (item.pontoPopup === undefined) // se já não tem popup definido
+                                                if (j === 0) // linka o clic no primeiro ponto (tag) de cor, ignora as demais
+                                                {
+                                                    this.tooltipRelac(item, pnt);
+                                                    item.setAttributeNS(null, "onclick", this.g_obj_onclick.replace(/PONTO/g, pnt));
+                                                    if (item.style !== null) {
+                                                        item.style.cursor = "pointer";
+                                                    }
+                                                    if (item.noTrace === undefined) {
+                                                        this.produzEtiq(item, pnt);
+                                                        this.produzDestaq(item, pnt);
+                                                        this.produzRelac(item, pnt);
+                                                    }
+                                                }
+                                }
+                                break;
+                            case "bar":
+                                inksage_labelvec[lbv].initheight = item.getAttributeNS(null, "height");
+                                break;
+                            case "opac":
+                                break;
+                            case "open":
+                                if (inksage_labelvec[lbv].istag == 0) {
+                                    // Source type = URL: 
+                                    //   new:url open new page, 
+                                    //   preview:url preview page (popup),
+                                    //   link to another screen (name of the screen file without path/extension) 
+                                    if (inksage_labelvec[lbv].src.indexOf("new:") === 0) {
+                                        item.style.cursor = "pointer";
+                                        item.setAttributeNS(null, "onclick",
+                                            "window.open( '" + inksage_labelvec[lbv].src.substr(4) +
+                                            "','','dependent=yes,height=" + inksage_labelvec[lbv].height + ",width=" + inksage_labelvec[lbv].width +
+                                            ",toolbar=no,directories=no,status=no,menubar=no,scrollbars=no,resizable=no,modal=yes' );");
+                                    }
+                                    else
+                                        if (inksage_labelvec[lbv].src.indexOf("preview:") === 0) {
+                                            this.setPreview(item, inksage_labelvec[lbv].src.substr(8), inksage_labelvec[lbv].width, inksage_labelvec[lbv].height);
+                                        }
+                                        else {
+                                            idtela = inksage_labelvec[lbv].src.trim();
+                                            item.style.cursor = "pointer";
+                                            // show the linked page preview on mouseover
+                                            this.setPreview(item, 'screen.html?SELTELA=../svg/' + idtela + '&ZPX=0&ZPY=0&ZPW=5280&ZPH=3300&HIDETB=1', 700, 480);
+
+                                        }
+                                }
+                                else { // Source type = TAG : gráfico, deve ser um retângulo
+                                    if (item.tagName === "rect") {
+                                        // values plot
+                                        inksage_labelvec[lbv].grafico = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                                        // SVGDoc.documentElement.appendChild( inksage_labelvec[lbv].grafico );
+                                        item.parentNode.appendChild(inksage_labelvec[lbv].grafico);
+                                        inksage_labelvec[lbv].grafico.setAttributeNS(null, 'style', "fill:none; stroke:white; stroke-width: 2");
+                                        tfm = item.getAttributeNS(null, "transform");
+                                        if (tfm != null) {
+                                            inksage_labelvec[lbv].grafico.setAttributeNS(null, "transform", tfm);
+                                        }
+
+                                        // faz a cor e espessura do gráfico igual ao do retângulo que o contém
+                                        if (item.style != undefined) {
+                                            if (item.style.strokeWidth != "") {
+                                                inksage_labelvec[lbv].grafico.style.strokeWidth = item.style.strokeWidth;
+                                            }
+                                            if (item.style.stroke != "") {
+                                                inksage_labelvec[lbv].grafico.style.stroke = item.style.stroke;
+                                            }
+                                        }
+
+                                        // source field format: point number|plot style|superior limit style|inferior limit style
+                                        // Ex: Source: 1234|stroke:green|stroke:red|stroke:orange 
+                                        tspl = inksage_labelvec[lbv].src.split("|");
+                                        inksage_labelvec[lbv].tag = tspl[0];
+                                        if (typeof (tspl[1]) != "undefined") {
+                                            if (tspl[1].trim() != "") {
+                                                inksage_labelvec[lbv].grafico.setAttributeNS(null, 'style', tspl[1]);
+                                            }
+                                        }
+
+                                        inksage_labelvec[lbv].valores = [];
+                                        inksage_labelvec[lbv].datas = [];
+                                        inksage_labelvec[lbv].bb = item.getBBox();
+                                        inksage_labelvec[lbv].bb.left = inksage_labelvec[lbv].bb.x;
+                                        inksage_labelvec[lbv].bb.right = inksage_labelvec[lbv].bb.x + inksage_labelvec[lbv].bb.width;
+                                        inksage_labelvec[lbv].bb.top = inksage_labelvec[lbv].bb.y;
+                                        inksage_labelvec[lbv].bb.bottom = inksage_labelvec[lbv].bb.y + inksage_labelvec[lbv].bb.height;
+                                        pnt = this.insertTagOnList(inksage_labelvec[lbv].tag);
+                                        if (typeof (item.blockPopup) == "undefined")
+                                            if (item.pontoPopup == undefined) // se já não tem popup definido
+                                            {
+                                                this.tooltipRelac(item, pnt);
+                                                item.setAttributeNS(null, "onclick", this.g_obj_onclick.replace(/PONTO/g, pnt));
+                                                if (item.style != null) {
+                                                    item.style.cursor = "pointer";
+                                                }
+                                                if (item.noTrace == undefined) {
+                                                    this.produzEtiq(item, pnt);
+                                                    this.produzDestaq(item, pnt);
+                                                    this.produzRelac(item, pnt);
+                                                }
+                                            }
+
+                                        // call server to get historic data to fill plot
+                                        if (inksage_labelvec[lbv].width > 0) {
+                                            inksage_labelvec[lbv].dataini = (new Date()).getTime() - Math.abs(inksage_labelvec[lbv].width) * 1000;
+                                            calltps = '$.getScript( this.g_timePntServer + "?P=' + inksage_labelvec[lbv].tag +
+                                                '&U=' + inksage_labelvec[lbv].dataini / 1000 +
+                                                '&I=' + inksage_labelvec[lbv].x +
+                                                '&F=S' +
+                                                '&B=histdata(' + this.InkSage.length + ',\'' + inksage_labelvec[lbv].tag + '\');histdata' + '"' + ' );';
+                                        }
+                                        else {
+                                            var dtn = new Date();
+                                            inksage_labelvec[lbv].dataini = dtn.getTime() -
+                                                dtn.getTime() % (Math.abs(inksage_labelvec[lbv].width) * 1000) +
+                                                (dtn.getTimezoneOffset() * 60 * 1000) % (Math.abs(inksage_labelvec[lbv].width) * 1000);
+                                            inksage_labelvec[lbv].datafim = inksage_labelvec[lbv].dataini + Math.abs(inksage_labelvec[lbv].width * 1000);
+                                            calltps = '$.getScript( this.g_timePntServer + "?P=' + inksage_labelvec[lbv].tag +
+                                                '&U=' + inksage_labelvec[lbv].dataini / 1000 +
+                                                '&I=' + inksage_labelvec[lbv].x +
+                                                '&F=S' +
+                                                '&B=histdata(' + this.InkSage.length + ',\'' + inksage_labelvec[lbv].tag + '\');histdata' + '"' + ' );';
+                                        }
+                                        this.g_timeshift = this.g_timeshift + 2000;
+                                        setTimeout(calltps, this.g_timeshift);
+                                    }
+                                }
+                                break;
+                            case "rotate":
+                                if (item.getAttributeNS(null, "transform") === null) {
+                                    inksage_labelvec[lbv].inittransform = "";
+                                }
+                                else {
+                                    inksage_labelvec[lbv].inittransform = item.getAttributeNS(null, "transform");
+                                }
+                                break;
+                            case "tooltips":
+                                tooltiptext = "";
+                                for (j = 0; j < inksage_labelvec[lbv].param.length; j++) {
+                                    if (j > 0) {
+                                        tooltiptext = tooltiptext + "\n";
+                                    }
+                                    tooltiptext = tooltiptext + inksage_labelvec[lbv].param[j];
+                                }
+                                tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                                textNode = document.createTextNode(tooltiptext);
+                                tooltip.appendChild(textNode);
+                                item.appendChild(tooltip);
+                                item.hasTooltip = 1;
+                                if (tooltiptext.indexOf("!EVAL") !== -1) {
+                                    inksage_labelvec[lbv].hasActiveTooltip = 1;
+                                    inksage_labelvec[lbv].tooltipTitle = tooltip;
+                                    inksage_labelvec[lbv].tooltipText = tooltiptext;
+                                }
+                                break;
+                            case "slider":
+                                if (item.getAttributeNS(null, "transform") === null) {
+                                    inksage_labelvec[lbv].inittransform = "";
+                                }
+                                else {
+                                    inksage_labelvec[lbv].inittransform = item.getAttributeNS(null, "transform");
+                                }
+                                inksage_labelvec[lbv].min = parseFloat(inksage_labelvec[lbv].min);
+                                inksage_labelvec[lbv].max = parseFloat(inksage_labelvec[lbv].max);
+
+                                // encotra o objeto clone "use"
+                                clone = undefined;
+                                nohs = SVGDoc.getElementsByTagName("use");
+                                for (i = 0; i < nohs.length; i++) {
+                                    if (nohs.item(i).getAttributeNS("http://www.w3.org/1999/xlink", "href") == ("#" + item.getAttributeNS(null, "id"))) {
+                                        clone = nohs.item(i);
+                                        inksage_labelvec[lbv].clone = clone;
+                                        break;
+                                    }
+                                }
+                                if (clone != undefined) {
+                                    clone.style.display = "none"; // esconde o objeto clone
+                                    var clonetfm = clone.getAttributeNS(null, "transform");
+                                    var st1 = clonetfm.indexOf("(");
+                                    var st2 = clonetfm.indexOf(",");
+                                    if (st2 === -1)
+                                        st2 = clonetfm.indexOf(" ");
+                                    var st3 = clonetfm.indexOf(")");
+                                    if (st2 == -1)
+                                        st2 = st3;
+                                    inksage_labelvec[lbv].rangex = parseFloat(clonetfm.substring(st1 + 1, st2)) || 0;
+                                    inksage_labelvec[lbv].rangey = parseFloat(clonetfm.substring(st2 + 1, st3)) || 0;
+                                }
+                                break;
+                            case "zoom":
+                                // quando o objeto for clicado, amplia e apaga o objeto clicado (desobstrui a área).
+                                bb = item.getBoundingClientRect();
+                                item.setAttributeNS(null, "onclick",
+                                    " this.g_zpX = " + (bb.left) +
+                                    ";this.g_zpY = " + (bb.top) +
+                                    ";this.g_zpW = " + (bb.width * 2.0) +
+                                    ";this.g_zpH = " + (bb.height * 2.0) +
+                                    ";this.zoomPan(10);evt.currentTarget.style.display='none';"
+                                );
+                                break;
+                            case "script":
+                                for (i = 0; i < inksage_labelvec[lbv].list.length; i++) {
+                                    item.setAttributeNS(null, "on" + inksage_labelvec[lbv].list[i].evt, "thisobj=evt.currentTarget;" + inksage_labelvec[lbv].list[i].param);
+                                    if (inksage_labelvec[lbv].list[i].evt.indexOf("mouse") >= 0)
+                                        if (typeof (item.blockPopup) == "undefined")
+                                            if (item.style !== null)
+                                                item.style.cursor = "pointer";
+                                }
+                                break;
+                            case "text":
+                                break;
+                            case "clone":
+                                break;
+                            default:
+                                break;
+                        }
+
+                        this.InkSage.push(inksage_labelvec[lbv]); // salva para posterior processamento
+                    }
+                }
+            }
+
+            processDisplay() {
+                var nohs;
+                var i;
+
+                var SVGDoc = this.children[0];
+                // processa primeiro os grupos por causa dos clones nas tags do inkscape SAGE
+                nohs = SVGDoc.getElementsByTagName("g");
+                for (i = 0; i < nohs.length; i++) {
+                    this.readMarkup(nohs.item(i));
+                }
+
+                // trata os objetos text do SVG em busca dos TAGS dos pontos associados     
+                nohs = SVGDoc.getElementsByTagName("text");
+                try {
+                    for (i = 0; i < nohs.length; i++) {
+                        this.readMarkup(nohs.item(i));
+                    }
+                }
+                catch (err) {
+                    console.log("Error!" + " [4]");
+                    console.log(err.stack);
+                }
+
+                // shapes     
+                nohs = [];
+                var tmp;
+                tmp = SVGDoc.getElementsByTagName("rect");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("ellipse");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("path");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("image");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("g");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("circle");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("line");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("polyline");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("polygon");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+                tmp = SVGDoc.getElementsByTagName("use");
+                for (i = 0; i < tmp.length; i++) { nohs.push(tmp.item(i)); }
+
+                for (i = 0; i < nohs.length; i++) {
+                    if (nohs[i].nodeName != "g") {
+                        try {
+                            this.readMarkup(nohs[i]);
+                        }
+                        catch (err) {
+                            console.log("Error!" + " [5]");
+                            console.log("Obj ID=" + nohs[i].id + " " + err.stack);
+                        }
+                    }
+
+
+                }
+            }
+        });
+    </script>
+
+</head>
+
+<body>
+    <oshmi-display src="../svg/kaw2.svg" server="pntserver.rjs"></oshmi-display>
+</body>
+
+</html>
